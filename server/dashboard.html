@@ -4,28 +4,41 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Absen NFC Perpus</title>
-<style>
-:root{color-scheme:light dark;--bg:#fff;--fg:#1b1f24;--mut:#667085;--card:#f3f5f8;--ok:#1a7f37;--no:#cf222e}
-@media(prefers-color-scheme:dark){:root{--bg:#14171b;--fg:#e8ebef;--mut:#98a2b3;--card:#1e2329;--ok:#3fb950;--no:#f85149}}
-body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 system-ui,sans-serif}
-main{max-width:640px;margin:0 auto;padding:16px}
-h1{font-size:1.3rem;margin:0 0 4px}
-h2{font-size:1rem;margin:22px 0 8px}
-.mut{color:var(--mut);font-size:.85rem}
-.row{display:flex;justify-content:space-between;align-items:center;gap:8px;background:var(--card);border-radius:10px;padding:10px 12px;margin-bottom:6px}
-.ok{color:var(--ok);font-weight:600}
-.no{color:var(--no);font-weight:600}
-.kecil{font-size:.8rem;color:var(--mut)}
-</style>
+<script src="https://cdn.tailwindcss.com/3.4.17"></script>
 </head>
-<body>
-<main>
-<h1>Absen NFC Perpus</h1>
-<div class="mut">Diperbarui: <span id="waktu">memuat...</span></div>
-<h2>Riwayat absen terbaru</h2>
-<div id="absen"></div>
-<h2>Kartu terdaftar</h2>
-<div id="kartu"></div>
+<body class="bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
+<main class="mx-auto max-w-xl px-4 py-6">
+
+  <header class="mb-5">
+    <h1 class="text-xl font-semibold tracking-tight">Absen NFC Perpus</h1>
+    <p class="mt-1 flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+      <span class="h-2 w-2 animate-pulse rounded-full bg-emerald-500"></span>
+      Diperbarui <span id="waktu">memuat...</span>
+    </p>
+  </header>
+
+  <section class="mb-6 grid grid-cols-3 gap-3">
+    <div class="rounded-2xl bg-white p-3 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+      <p id="sDiterima" class="text-2xl font-semibold text-emerald-600 dark:text-emerald-400">0</p>
+      <p class="text-xs text-slate-500 dark:text-slate-400">Diterima</p>
+    </div>
+    <div class="rounded-2xl bg-white p-3 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+      <p id="sDitolak" class="text-2xl font-semibold text-rose-600 dark:text-rose-400">0</p>
+      <p class="text-xs text-slate-500 dark:text-slate-400">Ditolak</p>
+    </div>
+    <div class="rounded-2xl bg-white p-3 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-slate-800">
+      <p id="sKartu" class="text-2xl font-semibold">0</p>
+      <p class="text-xs text-slate-500 dark:text-slate-400">Kartu terdaftar</p>
+    </div>
+  </section>
+  <p class="-mt-4 mb-6 text-xs text-slate-400">Hitungan diterima dan ditolak dari 50 absen terakhir.</p>
+
+  <h2 class="mb-2 text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">Riwayat absen</h2>
+  <ul id="absen" class="mb-6 divide-y divide-slate-100 overflow-hidden rounded-2xl bg-white ring-1 ring-slate-200 dark:divide-slate-800 dark:bg-slate-900 dark:ring-slate-800"></ul>
+
+  <h2 class="mb-2 text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">Kartu terdaftar</h2>
+  <ul id="kartu" class="divide-y divide-slate-100 overflow-hidden rounded-2xl bg-white ring-1 ring-slate-200 dark:divide-slate-800 dark:bg-slate-900 dark:ring-slate-800"></ul>
+
 </main>
 <script>
 function el(tag, kelas, teks) {
@@ -34,30 +47,48 @@ function el(tag, kelas, teks) {
   if (teks !== undefined) e.textContent = teks;
   return e;
 }
-function baris(judul, anak, kanan, kelasKanan) {
-  const r = el("div", "row");
-  const kiri = el("div");
-  kiri.appendChild(el("div", "", judul));
-  kiri.appendChild(el("div", "kecil", anak));
-  r.appendChild(kiri);
-  r.appendChild(el("div", kelasKanan, kanan));
-  return r;
+const LENCANA_OK = "shrink-0 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300";
+const LENCANA_NO = "shrink-0 rounded-full bg-rose-50 px-2.5 py-1 text-xs font-medium text-rose-700 dark:bg-rose-950 dark:text-rose-300";
+
+function item(inisial, judul, anak, lencana, kelasLencana) {
+  const li = el("li", "flex items-center gap-3 p-3");
+  li.appendChild(el("div", "flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-100 text-sm font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300", inisial));
+  const tengah = el("div", "min-w-0 flex-1");
+  tengah.appendChild(el("p", "truncate text-sm font-medium", judul));
+  tengah.appendChild(el("p", "truncate text-xs text-slate-500 dark:text-slate-400", anak));
+  li.appendChild(tengah);
+  if (lencana) li.appendChild(el("span", kelasLencana, lencana));
+  return li;
 }
+function kosong(teks) {
+  return el("li", "p-4 text-center text-sm text-slate-500 dark:text-slate-400", teks);
+}
+
 async function muat() {
   try {
     const [a, k] = await Promise.all([
       fetch("/absen").then(r => r.json()),
       fetch("/kartu").then(r => r.json())
     ]);
+
     const boxA = document.getElementById("absen");
     boxA.replaceChildren();
-    if (a.length === 0) boxA.appendChild(el("div", "mut", "Belum ada absen."));
-    a.forEach(x => boxA.appendChild(
-      baris(x.nama, x.uid + "  |  " + x.waktu, x.status, x.status === "diterima" ? "ok" : "no")));
+    if (a.length === 0) boxA.appendChild(kosong("Belum ada absen."));
+    a.forEach(x => {
+      const ok = x.status === "diterima";
+      const judul = ok ? x.nama : "Kartu tidak dikenal";
+      boxA.appendChild(item(ok ? x.nama.charAt(0).toUpperCase() : "?", judul,
+        x.uid + "  |  " + x.waktu, x.status, ok ? LENCANA_OK : LENCANA_NO));
+    });
+
     const boxK = document.getElementById("kartu");
     boxK.replaceChildren();
-    if (k.length === 0) boxK.appendChild(el("div", "mut", "Belum ada kartu."));
-    k.forEach(x => boxK.appendChild(baris(x.nama, x.uid, "", "")));
+    if (k.length === 0) boxK.appendChild(kosong("Belum ada kartu."));
+    k.forEach(x => boxK.appendChild(item(x.nama.charAt(0).toUpperCase(), x.nama, x.uid, "", "")));
+
+    document.getElementById("sDiterima").textContent = a.filter(x => x.status === "diterima").length;
+    document.getElementById("sDitolak").textContent = a.filter(x => x.status !== "diterima").length;
+    document.getElementById("sKartu").textContent = k.length;
     document.getElementById("waktu").textContent = new Date().toLocaleTimeString("id-ID");
   } catch (e) {
     document.getElementById("waktu").textContent = "gagal memuat";
