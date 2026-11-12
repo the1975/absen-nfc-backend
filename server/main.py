@@ -131,3 +131,12 @@ def daftar_absen():
             "SELECT id, uid, nama, status, waktu FROM absen ORDER BY id DESC LIMIT 50"
         ).fetchall()
     return [dict(b) for b in baris]
+
+
+from pathlib import Path
+from fastapi.responses import HTMLResponse
+
+
+@app.get("/dashboard", response_class=HTMLResponse)
+def dashboard():
+    return (Path(__file__).parent / "dashboard.html").read_text(encoding="utf-8")

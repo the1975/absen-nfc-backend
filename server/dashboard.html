@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Absen NFC Perpus</title>
+<style>
+:root{color-scheme:light dark;--bg:#fff;--fg:#1b1f24;--mut:#667085;--card:#f3f5f8;--ok:#1a7f37;--no:#cf222e}
+@media(prefers-color-scheme:dark){:root{--bg:#14171b;--fg:#e8ebef;--mut:#98a2b3;--card:#1e2329;--ok:#3fb950;--no:#f85149}}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 system-ui,sans-serif}
+main{max-width:640px;margin:0 auto;padding:16px}
+h1{font-size:1.3rem;margin:0 0 4px}
+h2{font-size:1rem;margin:22px 0 8px}
+.mut{color:var(--mut);font-size:.85rem}
+.row{display:flex;justify-content:space-between;align-items:center;gap:8px;background:var(--card);border-radius:10px;padding:10px 12px;margin-bottom:6px}
+.ok{color:var(--ok);font-weight:600}
+.no{color:var(--no);font-weight:600}
+.kecil{font-size:.8rem;color:var(--mut)}
+</style>
+</head>
+<body>
+<main>
+<h1>Absen NFC Perpus</h1>
+<div class="mut">Diperbarui: <span id="waktu">memuat...</span></div>
+<h2>Riwayat absen terbaru</h2>
+<div id="absen"></div>
+<h2>Kartu terdaftar</h2>
+<div id="kartu"></div>
+</main>
+<script>
+function el(tag, kelas, teks) {
+  const e = document.createElement(tag);
+  if (kelas) e.className = kelas;
+  if (teks !== undefined) e.textContent = teks;
+  return e;
+}
+function baris(judul, anak, kanan, kelasKanan) {
+  const r = el("div", "row");
+  const kiri = el("div");
+  kiri.appendChild(el("div", "", judul));
+  kiri.appendChild(el("div", "kecil", anak));
+  r.appendChild(kiri);
+  r.appendChild(el("div", kelasKanan, kanan));
+  return r;
+}
+async function muat() {
+  try {
+    const [a, k] = await Promise.all([
+      fetch("/absen").then(r => r.json()),
+      fetch("/kartu").then(r => r.json())
+    ]);
+    const boxA = document.getElementById("absen");
+    boxA.replaceChildren();
+    if (a.length === 0) boxA.appendChild(el("div", "mut", "Belum ada absen."));
+    a.forEach(x => boxA.appendChild(
+      baris(x.nama, x.uid + "  |  " + x.waktu, x.status, x.status === "diterima" ? "ok" : "no")));
+    const boxK = document.getElementById("kartu");
+    boxK.replaceChildren();
+    if (k.length === 0) boxK.appendChild(el("div", "mut", "Belum ada kartu."));
+    k.forEach(x => boxK.appendChild(baris(x.nama, x.uid, "", "")));
+    document.getElementById("waktu").textContent = new Date().toLocaleTimeString("id-ID");
+  } catch (e) {
+    document.getElementById("waktu").textContent = "gagal memuat";
+  }
+}
+muat();
+setInterval(muat, 5000);
+</script>
+</body>
+</html>
