@@ -3,12 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
 <title>{% block judul %}Absen Perpustakaan{% endblock %}</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
 <script src="https://cdn.tailwindcss.com/3.4.17"></script>
 <script>
 tailwind.config = {
+  darkMode: "class",
   theme: { extend: {
     colors: { brand: { 50: "#EEF4FD", 100: "#DCE8FA", 500: "#1769D2", 600: "#1259B3", 700: "#0E4894" } },
     fontFamily: { sans: ["Inter", "system-ui", "sans-serif"] }

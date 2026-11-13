@@ -204,6 +204,7 @@ def ambil_data(terakhir_id=None, status="semua"):
     return {
         "absen": absen, "diterima": diterima, "ditolak": ditolak, "jumlah_kartu": jumlah_kartu,
         "status": status,
+        "tanggal": tanggal_indo(),
         "id_terbaru": terbaru["id"] if terbaru else 0,
         "tap_terakhir": waktu_relatif(terbaru["waktu"]) if terbaru else None,
     }

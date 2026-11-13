@@ -2,8 +2,7 @@
 {% block judul %}Beranda | Absen Perpustakaan{% endblock %}
 {% block isi %}
 
-<p class="text-[13px] text-[#5B6B80] dark:text-[#9AA8B8]">{{ tanggal }}</p>
-<h1 class="mt-0.5 text-2xl font-bold tracking-tight md:text-[28px]">Beranda</h1>
+<h1 class="text-2xl font-bold tracking-tight md:text-[28px]">Beranda</h1>
 
 <div id="live" hx-get="/dashboard/bagian" hx-trigger="every 5s" hx-swap="innerHTML" hx-vals='js:{terakhir: window.idTerakhir || 0, status: window.filterStatus || "semua"}'>
   {% include "_ringkasan.html" %}
