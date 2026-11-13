@@ -225,3 +225,53 @@ def dashboard_bagian(request: Request, terakhir: int = 0, status: str = "semua")
         status = "semua"
     return templates.TemplateResponse(
         request=request, name="_ringkasan.html", context=ambil_data(terakhir, status))
+
+
+import re
+from html import escape
+from fastapi import Form
+
+
+def semua_kartu():
+    with closing(koneksi()) as db:
+        db.row_factory = sqlite3.Row
+        return [dict(b) for b in db.execute(
+            "SELECT uid, nama FROM kartu ORDER BY nama COLLATE NOCASE")]
+
+
+@app.get("/dashboard/kartu", response_class=HTMLResponse)
+def halaman_kartu(request: Request):
+    return templates.TemplateResponse(
+        request=request, name="kartu.html", context={"kartu": semua_kartu(), "aktif": "kartu"})
+
+
+@app.post("/dashboard/kartu", response_class=HTMLResponse)
+def tambah_kartu_web(request: Request, uid: str = Form(""), nama: str = Form("")):
+    uid = re.sub(r"[\s:\-]", "", uid).upper()
+    nama = " ".join(nama.split())
+    galat = None
+    if not re.fullmatch(r"[0-9A-F]{8}|[0-9A-F]{14}|[0-9A-F]{20}", uid):
+        galat = "UID harus 8, 14, atau 20 karakter berupa angka dan huruf A-F. Contoh: AABBCCDD"
+    elif not nama or len(nama) > 40:
+        galat = "Nama wajib diisi, maksimal 40 karakter."
+    if galat:
+        return HTMLResponse(escape(galat), headers={"HX-Retarget": "#pesan-form", "HX-Reswap": "innerHTML"})
+    with closing(koneksi()) as db:
+        db.execute(
+            "INSERT INTO kartu (uid, nama, dibuat) VALUES (?, ?, ?) "
+            "ON CONFLICT(uid) DO UPDATE SET nama = excluded.nama",
+            (uid, nama, sekarang()),
+        )
+        db.commit()
+    return templates.TemplateResponse(
+        request=request, name="_daftar_kartu.html", context={"kartu": semua_kartu()},
+        headers={"HX-Trigger": "kartu-tersimpan"})
+
+
+@app.delete("/dashboard/kartu/{uid}", response_class=HTMLResponse)
+def hapus_kartu_web(request: Request, uid: str):
+    with closing(koneksi()) as db:
+        db.execute("DELETE FROM kartu WHERE uid = ?", (uid.strip().upper(),))
+        db.commit()
+    return templates.TemplateResponse(
+        request=request, name="_daftar_kartu.html", context={"kartu": semua_kartu()})

@@ -1,0 +1,20 @@
+<p class="text-[13px] text-[#5B6B80]">{{ kartu|length }} kartu terdaftar</p>
+<ul class="mt-3 space-y-2">
+  {% for k in kartu %}
+  <li class="flex items-center gap-3 rounded-2xl bg-white p-3 ring-1 ring-[#E6ECF4] shadow-[0_1px_2px_rgba(15,27,45,.05)]">
+    <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand-50 text-[15px] font-semibold text-brand-600">{{ k.nama[0]|upper }}</div>
+    <div class="min-w-0 flex-1">
+      <p class="truncate text-[15px] font-semibold">{{ k.nama }}</p>
+      <p class="font-mono text-xs tabular-nums text-[#5B6B80]">{{ k.uid }}</p>
+    </div>
+    <button type="button" aria-label="Hapus kartu {{ k.nama }}"
+      hx-delete="/dashboard/kartu/{{ k.uid }}" hx-confirm="Hapus kartu {{ k.nama }}?"
+      hx-target="#daftar-kartu" hx-swap="innerHTML"
+      class="flex h-11 w-11 items-center justify-center rounded-full text-[#5B6B80] transition active:bg-rose-50 active:text-rose-600">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12h10l1-12M9 7V4h6v3"/></svg>
+    </button>
+  </li>
+  {% else %}
+  <li class="rounded-2xl bg-white px-4 py-8 text-center text-sm text-[#5B6B80] ring-1 ring-[#E6ECF4]">Belum ada kartu. Tekan <b>+ Kartu</b> untuk mendaftarkan kartu pertama.</li>
+  {% endfor %}
+</ul>

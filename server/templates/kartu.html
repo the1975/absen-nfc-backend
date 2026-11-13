@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block judul %}Kartu | Absen Perpustakaan{% endblock %}
+{% block isi %}
+
+<div class="flex items-center justify-between">
+  <h1 class="text-2xl font-bold tracking-tight md:text-[28px]">Kartu</h1>
+  <button id="buka-sheet" type="button" class="h-11 rounded-xl bg-brand-500 px-5 text-sm font-semibold text-white shadow-[0_6px_16px_-6px_rgba(23,105,210,.7)] transition active:bg-brand-600">+ Kartu</button>
+</div>
+
+<div id="daftar-kartu" class="mt-4">
+  {% include "_daftar_kartu.html" %}
+</div>
+
+<dialog id="sheet" class="mx-0 mb-0 mt-auto w-full max-w-none rounded-t-3xl bg-white p-0 text-[#0F1B2D] backdrop:bg-black/40 md:m-auto md:max-w-md md:rounded-3xl">
+  <form id="form-kartu" hx-post="/dashboard/kartu" hx-target="#daftar-kartu" hx-swap="innerHTML" class="px-5 pb-8 pt-3">
+    <div class="mx-auto mb-4 h-1 w-10 rounded-full bg-[#C9D3E0] md:hidden"></div>
+    <h2 class="text-lg font-bold">Daftarkan kartu</h2>
+
+    <label for="uid" class="mb-1.5 mt-4 block text-[13px] font-semibold">UID kartu</label>
+    <input id="uid" name="uid" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Contoh: AABBCCDD"
+      class="h-12 w-full rounded-xl border border-[#C9D3E0] px-3.5 font-mono text-[15px] uppercase focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100">
+    <p class="mt-1.5 text-xs text-[#5B6B80]">UID muncul di Serial Monitor saat kartu ditempel. Titik dua dan spasi diabaikan.</p>
+
+    <label for="nama" class="mb-1.5 mt-4 block text-[13px] font-semibold">Nama pemilik</label>
+    <input id="nama" name="nama" type="text" maxlength="40" autocomplete="off" placeholder="Contoh: Fahmi"
+      class="h-12 w-full rounded-xl border border-[#C9D3E0] px-3.5 text-[15px] focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100">
+
+    <p id="pesan-form" role="alert" class="mt-3 min-h-5 text-sm text-rose-700"></p>
+
+    <button type="submit" class="mt-2 h-[52px] w-full rounded-2xl bg-brand-500 text-base font-semibold text-white transition active:bg-brand-600">Simpan kartu</button>
+    <button id="tutup-sheet" type="button" class="mt-2 h-12 w-full text-[15px] font-semibold text-[#5B6B80]">Batal</button>
+  </form>
+</dialog>
+
+{% endblock %}
+{% block skrip %}
+<script>
+var sheet = document.getElementById("sheet");
+var form = document.getElementById("form-kartu");
+document.getElementById("buka-sheet").addEventListener("click", function () {
+  form.reset();
+  document.getElementById("pesan-form").textContent = "";
+  sheet.showModal();
+  document.getElementById("uid").focus();
+});
+document.getElementById("tutup-sheet").addEventListener("click", function () { sheet.close(); });
+sheet.addEventListener("click", function (e) { if (e.target === sheet) sheet.close(); });
+document.body.addEventListener("kartu-tersimpan", function () { sheet.close(); form.reset(); });
+</script>
+{% endblock %}
