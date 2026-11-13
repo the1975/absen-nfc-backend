@@ -184,24 +184,28 @@ def dashboard(request: Request):
         request=request, name="beranda.html",
         context={"absen": absen, "diterima": diterima, "ditolak": ditolak,
                  "jumlah_kartu": jumlah_kartu, "tanggal": tanggal_indo(), "terakhir": terakhir})
-def ambil_data(terakhir_id=None):
+def ambil_data(terakhir_id=None, status="semua"):
     hari_ini = sekarang()[:10] + "%"
+    kondisi = {"diterima": "WHERE status = 'diterima'",
+               "ditolak": "WHERE status != 'diterima'"}.get(status, "")
     with closing(koneksi()) as db:
         db.row_factory = sqlite3.Row
         absen = [dict(b) for b in db.execute(
-            "SELECT id, uid, nama, status, waktu FROM absen ORDER BY id DESC LIMIT 20")]
+            f"SELECT id, uid, nama, status, waktu FROM absen {kondisi} ORDER BY id DESC LIMIT 20")]
         diterima = db.execute(
             "SELECT COUNT(*) FROM absen WHERE status = 'diterima' AND waktu LIKE ?", (hari_ini,)).fetchone()[0]
         ditolak = db.execute(
             "SELECT COUNT(*) FROM absen WHERE status != 'diterima' AND waktu LIKE ?", (hari_ini,)).fetchone()[0]
         jumlah_kartu = db.execute("SELECT COUNT(*) FROM kartu").fetchone()[0]
+        terbaru = db.execute("SELECT id, waktu FROM absen ORDER BY id DESC LIMIT 1").fetchone()
     for a in absen:
         a["jam"] = a["waktu"][11:16]
         a["baru"] = terakhir_id is not None and a["id"] > terakhir_id
     return {
         "absen": absen, "diterima": diterima, "ditolak": ditolak, "jumlah_kartu": jumlah_kartu,
-        "id_terbaru": absen[0]["id"] if absen else 0,
-        "tap_terakhir": waktu_relatif(absen[0]["waktu"]) if absen else None,
+        "status": status,
+        "id_terbaru": terbaru["id"] if terbaru else 0,
+        "tap_terakhir": waktu_relatif(terbaru["waktu"]) if terbaru else None,
     }
 
 
@@ -213,6 +217,8 @@ def dashboard(request: Request):
 
 
 @app.get("/dashboard/bagian", response_class=HTMLResponse)
-def dashboard_bagian(request: Request, terakhir: int = 0):
+def dashboard_bagian(request: Request, terakhir: int = 0, status: str = "semua"):
+    if status not in ("semua", "diterima", "ditolak"):
+        status = "semua"
     return templates.TemplateResponse(
-        request=request, name="_ringkasan.html", context=ambil_data(terakhir))
+        request=request, name="_ringkasan.html", context=ambil_data(terakhir, status))

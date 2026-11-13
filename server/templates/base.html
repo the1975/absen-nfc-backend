@@ -48,7 +48,7 @@ tailwind.config = {
 </nav>
 
 <script>
-function sinkron(){var e=document.getElementById("id-terbaru");if(e){window.idTerakhir=Number(e.dataset.id);}}
+function sinkron(){var e=document.getElementById("id-terbaru");if(e){window.idTerakhir=Number(e.dataset.id);window.filterStatus=e.dataset.status;}}
 sinkron();
 document.body.addEventListener("htmx:afterSwap",sinkron);
 </script>
