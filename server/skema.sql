@@ -1,0 +1,17 @@
+CREATE TABLE IF NOT EXISTS kartu (
+  uid    VARCHAR(20) PRIMARY KEY,
+  npm    VARCHAR(20) NULL,
+  nama   VARCHAR(40) NOT NULL,
+  dibuat DATETIME NOT NULL,
+  INDEX (npm)
+);
+
+CREATE TABLE IF NOT EXISTS absen (
+  id     INT AUTO_INCREMENT PRIMARY KEY,
+  uid    VARCHAR(20) NOT NULL,
+  npm    VARCHAR(20) NULL,
+  nama   VARCHAR(40) NOT NULL,
+  status VARCHAR(10) NOT NULL,
+  waktu  DATETIME NOT NULL,
+  INDEX (waktu)
+);
