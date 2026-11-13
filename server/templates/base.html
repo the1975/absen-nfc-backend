@@ -21,7 +21,9 @@ tailwind.config = {
 <style>
 @keyframes sorot{from{background-color:rgba(23,105,210,.22)}to{background-color:transparent}}
 .baru{animation:sorot 2.4s ease-out}
-@media (prefers-reduced-motion:reduce){.baru{animation:none}}
+@keyframes naik{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.masuk{animation:naik .35s ease-out both}
+@media (prefers-reduced-motion:reduce){.baru,.masuk{animation:none}}
 </style>
 </head>
 <body class="bg-[#F4F7FB] font-sans text-[#0F1B2D] antialiased dark:bg-[#0E141B] dark:text-[#E6EDF5]">

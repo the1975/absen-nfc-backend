@@ -179,6 +179,7 @@ def dashboard(request: Request):
         jumlah_kartu = db.execute("SELECT COUNT(*) FROM kartu").fetchone()[0]
     for a in absen:
         a["jam"] = a["waktu"][11:16]
+        a["relatif"] = waktu_relatif(a["waktu"])
     terakhir = waktu_relatif(absen[0]["waktu"]) if absen else None
     return templates.TemplateResponse(
         request=request, name="beranda.html",
@@ -213,6 +214,7 @@ def ambil_data(terakhir_id=None, status="semua"):
 @app.get("/dashboard", response_class=HTMLResponse)
 def dashboard(request: Request):
     data = ambil_data()
+    data["awal"] = True
     data["tanggal"] = tanggal_indo()
     return templates.TemplateResponse(request=request, name="beranda.html", context=data)
 
