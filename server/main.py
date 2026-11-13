@@ -134,9 +134,53 @@ def daftar_absen():
 
 
 from pathlib import Path
+from fastapi import Request
 from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates
+
+templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
+
+HARI = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"]
+BULAN = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli",
+         "Agustus", "September", "Oktober", "November", "Desember"]
+
+
+def tanggal_indo():
+    n = datetime.now(WIB)
+    return f"{HARI[n.weekday()]}, {n.day} {BULAN[n.month - 1]}"
+
+
+def waktu_relatif(teks):
+    try:
+        t = datetime.strptime(teks, "%Y-%m-%d %H:%M:%S").replace(tzinfo=WIB)
+    except ValueError:
+        return teks
+    selisih = int((datetime.now(WIB) - t).total_seconds())
+    if selisih < 60:
+        return "baru saja"
+    if selisih < 3600:
+        return f"{selisih // 60} menit lalu"
+    if selisih < 86400:
+        return f"{selisih // 3600} jam lalu"
+    return t.strftime("%d/%m/%Y")
 
 
 @app.get("/dashboard", response_class=HTMLResponse)
-def dashboard():
-    return (Path(__file__).parent / "dashboard.html").read_text(encoding="utf-8")
+def dashboard(request: Request):
+    hari_ini = sekarang()[:10] + "%"
+    with closing(koneksi()) as db:
+        db.row_factory = sqlite3.Row
+        absen = [dict(b) for b in db.execute(
+            "SELECT uid, nama, status, waktu FROM absen ORDER BY id DESC LIMIT 20")]
+        diterima = db.execute(
+            "SELECT COUNT(*) FROM absen WHERE status = 'diterima' AND waktu LIKE ?", (hari_ini,)).fetchone()[0]
+        ditolak = db.execute(
+            "SELECT COUNT(*) FROM absen WHERE status != 'diterima' AND waktu LIKE ?", (hari_ini,)).fetchone()[0]
+        jumlah_kartu = db.execute("SELECT COUNT(*) FROM kartu").fetchone()[0]
+    for a in absen:
+        a["jam"] = a["waktu"][11:16]
+    terakhir = waktu_relatif(absen[0]["waktu"]) if absen else None
+    return templates.TemplateResponse(
+        request=request, name="beranda.html",
+        context={"absen": absen, "diterima": diterima, "ditolak": ditolak,
+                 "jumlah_kartu": jumlah_kartu, "tanggal": tanggal_indo(), "terakhir": terakhir})

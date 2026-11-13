@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block judul %}Absen Perpustakaan{% endblock %}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+<script src="https://cdn.tailwindcss.com/3.4.17"></script>
+<script>
+tailwind.config = {
+  theme: { extend: {
+    colors: { brand: { 50: "#EEF4FD", 100: "#DCE8FA", 500: "#1769D2", 600: "#1259B3", 700: "#0E4894" } },
+    fontFamily: { sans: ["Inter", "system-ui", "sans-serif"] }
+  } }
+}
+</script>
+</head>
+<body class="bg-[#F4F7FB] font-sans text-[#0F1B2D] antialiased dark:bg-[#0E141B] dark:text-[#E6EDF5]">
+
+<aside class="fixed inset-y-0 left-0 hidden w-60 flex-col gap-1 border-r border-[#E6ECF4] bg-white p-4 md:flex dark:border-[#243041] dark:bg-[#161E27]">
+  <div class="flex items-center gap-3 px-3 pb-6 pt-2">
+    <div class="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-500 text-white">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M3 10h18"/></svg>
+    </div>
+    <div class="text-[15px] font-bold leading-tight">Absen<br>Perpustakaan</div>
+  </div>
+  <a href="/dashboard" class="flex h-11 items-center gap-3 rounded-xl bg-brand-50 px-3 text-sm font-semibold text-brand-600 dark:bg-brand-700/30 dark:text-brand-100">Beranda</a>
+</aside>
+
+<div class="md:pl-60">
+  <main class="mx-auto max-w-5xl px-5 pb-28 pt-7 md:px-10 md:pb-10 md:pt-10">
+    {% block isi %}{% endblock %}
+  </main>
+</div>
+
+<nav class="fixed inset-x-0 bottom-0 flex border-t border-[#E6ECF4] bg-white pb-2 md:hidden dark:border-[#243041] dark:bg-[#161E27]">
+  <a href="/dashboard" class="flex h-16 flex-1 flex-col items-center justify-center gap-1 text-[11px] font-semibold text-brand-500 dark:text-brand-100">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 11l8-7 8 7v9H4z"/></svg>
+    Beranda
+  </a>
+</nav>
+
+</body>
+</html>
