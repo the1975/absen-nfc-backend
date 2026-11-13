@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 from html import escape
 from pathlib import Path
 
-from fastapi import FastAPI, Form, Request
+from fastapi import FastAPI, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
@@ -27,6 +27,7 @@ class Absen(BaseModel):
 class KartuBaru(BaseModel):
     uid: str
     nama: str
+    npm: str = ""
 
 
 class Tap(BaseModel):
@@ -55,6 +56,17 @@ def rapikan(baris):
             for k, v in baris.items()}
 
 
+PANJANG_NPM = 10
+
+
+def bersihkan_npm(npm):
+    # NPM boleh kosong; kalau diisi harus angka saja sepanjang PANJANG_NPM
+    npm = "".join((npm or "").split())
+    if npm and not (npm.isascii() and npm.isdigit() and len(npm) == PANJANG_NPM):
+        return None, f"NPM harus {PANJANG_NPM} angka."
+    return (npm or None), None
+
+
 def siapkan_db():
     skema = (Path(__file__).parent / "skema.sql").read_text()
     with kursor() as cur:
@@ -75,19 +87,22 @@ def beranda():
 def daftar_kartu(data: KartuBaru):
     uid = data.uid.strip().upper()
     nama = data.nama.strip()
+    npm, galat = bersihkan_npm(data.npm)
+    if galat:
+        raise HTTPException(status_code=422, detail=galat)
     with kursor() as cur:
         cur.execute(
-            "INSERT INTO kartu (uid, nama, dibuat) VALUES (%s, %s, %s) "
-            "ON DUPLICATE KEY UPDATE nama = VALUES(nama)",
-            (uid, nama, sekarang()),
+            "INSERT INTO kartu (uid, npm, nama, dibuat) VALUES (%s, %s, %s, %s) "
+            "ON DUPLICATE KEY UPDATE npm = VALUES(npm), nama = VALUES(nama)",
+            (uid, npm, nama, sekarang()),
         )
-    return {"ok": True, "uid": uid, "nama": nama}
+    return {"ok": True, "uid": uid, "npm": npm, "nama": nama}
 
 
 @app.get("/kartu")
 def daftar_semua_kartu():
     with kursor() as cur:
-        cur.execute("SELECT uid, nama, dibuat FROM kartu ORDER BY nama")
+        cur.execute("SELECT uid, npm, nama, dibuat FROM kartu ORDER BY nama")
         return [rapikan(b) for b in cur.fetchall()]
 
 
@@ -103,17 +118,18 @@ def tap_kartu(data: Tap):
     uid = data.uid.strip().upper()
     waktu = sekarang()
     with kursor() as cur:
-        cur.execute("SELECT nama FROM kartu WHERE uid = %s", (uid,))
+        cur.execute("SELECT nama, npm FROM kartu WHERE uid = %s", (uid,))
         baris = cur.fetchone()
         izin = baris is not None
         nama = baris["nama"] if izin else "-"
+        npm = baris["npm"] if izin else None
         status = "diterima" if izin else "ditolak"
         cur.execute(
-            "INSERT INTO absen (uid, nama, status, waktu) VALUES (%s, %s, %s, %s)",
-            (uid, nama, status, waktu),
+            "INSERT INTO absen (uid, npm, nama, status, waktu) VALUES (%s, %s, %s, %s, %s)",
+            (uid, npm, nama, status, waktu),
         )
     print(f"[{waktu}] {nama} ({uid}) -> {status}")
-    return {"izin": izin, "nama": nama, "waktu": waktu}
+    return {"izin": izin, "nama": nama, "npm": npm, "waktu": waktu}
 
 
 @app.post("/absen")
@@ -131,7 +147,7 @@ def terima_absen(data: Absen):
 @app.get("/absen")
 def daftar_absen():
     with kursor() as cur:
-        cur.execute("SELECT id, uid, nama, status, waktu FROM absen ORDER BY id DESC LIMIT 50")
+        cur.execute("SELECT id, uid, npm, nama, status, waktu FROM absen ORDER BY id DESC LIMIT 50")
         return [rapikan(b) for b in cur.fetchall()]
 
 
@@ -166,7 +182,7 @@ def ambil_data(terakhir_id=None, status="semua"):
                "ditolak": "WHERE status != 'diterima'"}.get(status, "")
     with kursor() as cur:
         cur.execute(
-            f"SELECT id, uid, nama, status, waktu FROM absen {kondisi} ORDER BY id DESC LIMIT 20")
+            f"SELECT id, uid, npm, nama, status, waktu FROM absen {kondisi} ORDER BY id DESC LIMIT 20")
         absen = [rapikan(b) for b in cur.fetchall()]
         cur.execute(
             "SELECT COUNT(*) AS n FROM absen WHERE status = 'diterima' AND waktu >= %s", (awal_hari,))
@@ -181,6 +197,7 @@ def ambil_data(terakhir_id=None, status="semua"):
     terbaru = rapikan(terbaru) if terbaru else None
     for a in absen:
         a["jam"] = a["waktu"][11:16]
+        a["relatif"] = waktu_relatif(a["waktu"])
         a["baru"] = terakhir_id is not None and a["id"] > terakhir_id
     return {
         "absen": absen, "diterima": diterima, "ditolak": ditolak, "jumlah_kartu": jumlah_kartu,
@@ -208,7 +225,7 @@ def dashboard_bagian(request: Request, terakhir: int = 0, status: str = "semua")
 
 def semua_kartu():
     with kursor() as cur:
-        cur.execute("SELECT uid, nama FROM kartu ORDER BY nama")
+        cur.execute("SELECT uid, npm, nama FROM kartu ORDER BY nama")
         return cur.fetchall()
 
 
@@ -219,7 +236,7 @@ def halaman_kartu(request: Request):
 
 
 @app.post("/dashboard/kartu", response_class=HTMLResponse)
-def tambah_kartu_web(request: Request, uid: str = Form(""), nama: str = Form("")):
+def tambah_kartu_web(request: Request, uid: str = Form(""), nama: str = Form(""), npm: str = Form("")):
     uid = re.sub(r"[\s:\-]", "", uid).upper()
     nama = " ".join(nama.split())
     galat = None
@@ -227,13 +244,15 @@ def tambah_kartu_web(request: Request, uid: str = Form(""), nama: str = Form("")
         galat = "UID harus 8, 14, atau 20 karakter berupa angka dan huruf A-F. Contoh: AABBCCDD"
     elif not nama or len(nama) > 40:
         galat = "Nama wajib diisi, maksimal 40 karakter."
+    else:
+        npm, galat = bersihkan_npm(npm)
     if galat:
         return HTMLResponse(escape(galat), headers={"HX-Retarget": "#pesan-form", "HX-Reswap": "innerHTML"})
     with kursor() as cur:
         cur.execute(
-            "INSERT INTO kartu (uid, nama, dibuat) VALUES (%s, %s, %s) "
-            "ON DUPLICATE KEY UPDATE nama = VALUES(nama)",
-            (uid, nama, sekarang()),
+            "INSERT INTO kartu (uid, npm, nama, dibuat) VALUES (%s, %s, %s, %s) "
+            "ON DUPLICATE KEY UPDATE npm = VALUES(npm), nama = VALUES(nama)",
+            (uid, npm, nama, sekarang()),
         )
     return templates.TemplateResponse(
         request=request, name="_daftar_kartu.html", context={"kartu": semua_kartu()},

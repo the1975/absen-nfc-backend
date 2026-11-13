@@ -5,7 +5,7 @@
     <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand-50 text-[15px] font-semibold text-brand-600">{{ k.nama[0]|upper }}</div>
     <div class="min-w-0 flex-1">
       <p class="truncate text-[15px] font-semibold">{{ k.nama }}</p>
-      <p class="font-mono text-xs tabular-nums text-[#5B6B80]">{{ k.uid }}</p>
+      <p class="text-xs text-[#5B6B80]">{% if k.npm %}<span class="tabular-nums">{{ k.npm }}</span> &middot; {% endif %}<span class="font-mono tabular-nums">{{ k.uid }}</span></p>
     </div>
     <button type="button" aria-label="Hapus kartu {{ k.nama }}"
       hx-delete="/dashboard/kartu/{{ k.uid }}" hx-confirm="Hapus kartu {{ k.nama }}?"
