@@ -165,26 +165,6 @@ def waktu_relatif(teks):
     return t.strftime("%d/%m/%Y")
 
 
-@app.get("/dashboard", response_class=HTMLResponse)
-def dashboard(request: Request):
-    hari_ini = sekarang()[:10] + "%"
-    with closing(koneksi()) as db:
-        db.row_factory = sqlite3.Row
-        absen = [dict(b) for b in db.execute(
-            "SELECT uid, nama, status, waktu FROM absen ORDER BY id DESC LIMIT 20")]
-        diterima = db.execute(
-            "SELECT COUNT(*) FROM absen WHERE status = 'diterima' AND waktu LIKE ?", (hari_ini,)).fetchone()[0]
-        ditolak = db.execute(
-            "SELECT COUNT(*) FROM absen WHERE status != 'diterima' AND waktu LIKE ?", (hari_ini,)).fetchone()[0]
-        jumlah_kartu = db.execute("SELECT COUNT(*) FROM kartu").fetchone()[0]
-    for a in absen:
-        a["jam"] = a["waktu"][11:16]
-        a["relatif"] = waktu_relatif(a["waktu"])
-    terakhir = waktu_relatif(absen[0]["waktu"]) if absen else None
-    return templates.TemplateResponse(
-        request=request, name="beranda.html",
-        context={"absen": absen, "diterima": diterima, "ditolak": ditolak,
-                 "jumlah_kartu": jumlah_kartu, "tanggal": tanggal_indo(), "terakhir": terakhir})
 def ambil_data(terakhir_id=None, status="semua"):
     hari_ini = sekarang()[:10] + "%"
     kondisi = {"diterima": "WHERE status = 'diterima'",
