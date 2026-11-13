@@ -18,13 +18,15 @@
 </button>
 
 <dialog id="sheet" class="mx-0 mb-0 mt-auto w-full max-w-none rounded-t-3xl bg-white p-0 text-[#0F1B2D] backdrop:bg-black/40 md:m-auto md:max-w-md md:rounded-3xl">
-  <form id="form-kartu" hx-post="/dashboard/kartu" hx-target="#daftar-kartu" hx-swap="innerHTML" class="px-5 pb-8 pt-3">
-    <div class="mx-auto mb-4 h-1 w-10 rounded-full bg-[#C9D3E0] md:hidden"></div>
-    <h2 class="text-lg font-bold">Daftarkan kartu</h2>
+  <form id="form-kartu" hx-post="/dashboard/kartu" hx-target="#daftar-kartu" hx-swap="innerHTML" class="px-5 pb-8">
+    <div id="grip" class="cursor-grab touch-none pb-2 pt-3 md:cursor-default">
+      <div class="mx-auto mb-4 h-1 w-10 rounded-full bg-[#C9D3E0] md:hidden"></div>
+      <h2 class="text-lg font-bold">Daftarkan kartu</h2>
+    </div>
 
     <label for="uid" class="mb-1.5 mt-4 block text-[13px] font-semibold">UID kartu</label>
     <input id="uid" name="uid" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Contoh: AABBCCDD"
-      class="h-12 w-full rounded-xl border border-[#C9D3E0] px-3.5 font-mono text-[15px] uppercase focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100">
+      class="h-12 w-full rounded-xl border border-[#C9D3E0] px-3.5 font-mono text-[15px] uppercase placeholder:font-sans placeholder:normal-case focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100">
     <p class="mt-1.5 text-xs text-[#5B6B80]">UID muncul di Serial Monitor saat kartu ditempel. Titik dua dan spasi diabaikan.</p>
 
     <label for="nama" class="mb-1.5 mt-4 block text-[13px] font-semibold">Nama pemilik</label>
@@ -43,9 +45,16 @@
 <script>
 var sheet = document.getElementById("sheet");
 var form = document.getElementById("form-kartu");
+var grip = document.getElementById("grip");
+var HP = window.matchMedia("(max-width: 767px)");
+var mulaiY = 0, geser = 0, menarik = false;
+
+function reset() { sheet.style.transition = ""; sheet.style.transform = ""; }
+
 document.querySelectorAll("[data-buka-sheet]").forEach(function (b) {
   b.addEventListener("click", function () {
     form.reset();
+    reset();
     document.getElementById("pesan-form").textContent = "";
     sheet.showModal();
     document.getElementById("uid").focus();
@@ -54,5 +63,30 @@ document.querySelectorAll("[data-buka-sheet]").forEach(function (b) {
 document.getElementById("tutup-sheet").addEventListener("click", function () { sheet.close(); });
 sheet.addEventListener("click", function (e) { if (e.target === sheet) sheet.close(); });
 document.body.addEventListener("kartu-tersimpan", function () { sheet.close(); form.reset(); });
+
+grip.addEventListener("pointerdown", function (e) {
+  if (!HP.matches) return;
+  menarik = true; mulaiY = e.clientY; geser = 0;
+  grip.setPointerCapture(e.pointerId);
+  sheet.style.transition = "none";
+});
+grip.addEventListener("pointermove", function (e) {
+  if (!menarik) return;
+  geser = Math.max(0, e.clientY - mulaiY);
+  sheet.style.transform = "translateY(" + geser + "px)";
+});
+function lepas() {
+  if (!menarik) return;
+  menarik = false;
+  sheet.style.transition = "transform .2s ease-out";
+  if (geser > 100) {
+    sheet.style.transform = "translateY(100%)";
+    setTimeout(function () { sheet.close(); reset(); }, 200);
+  } else {
+    sheet.style.transform = "";
+  }
+}
+grip.addEventListener("pointerup", lepas);
+grip.addEventListener("pointercancel", lepas);
 </script>
 {% endblock %}
