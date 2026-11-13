@@ -1,0 +1,41 @@
+<p class="mt-1 text-[13px] text-[#5B6B80] dark:text-[#9AA8B8]">
+  {% if tap_terakhir %}Tap terakhir {{ tap_terakhir }}{% else %}Belum ada tap{% endif %}
+</p>
+
+<section class="mt-5 flex rounded-[20px] bg-brand-500 px-5 py-5 text-white md:px-7 md:py-6 dark:bg-brand-600">
+  <div class="flex-1 border-r border-white/30 pr-3">
+    <div class="text-[34px] font-bold leading-none tabular-nums">{{ diterima }}</div>
+    <div class="mt-1 text-[13px]">Diterima</div>
+  </div>
+  <div class="flex-1 border-r border-white/30 px-3">
+    <div class="text-[34px] font-bold leading-none tabular-nums">{{ ditolak }}</div>
+    <div class="mt-1 text-[13px]">Ditolak</div>
+  </div>
+  <div class="flex-1 pl-3">
+    <div class="text-[34px] font-bold leading-none tabular-nums">{{ jumlah_kartu }}</div>
+    <div class="mt-1 text-[13px]">Kartu</div>
+  </div>
+</section>
+
+<h2 class="mb-2 mt-7 text-base font-bold">Riwayat absen</h2>
+<ul class="divide-y divide-[#E6ECF4] rounded-2xl bg-white px-4 dark:divide-[#243041] dark:bg-[#161E27]">
+  {% for a in absen %}
+  <li class="flex items-center gap-3 py-3 {% if a.baru %}baru{% endif %}">
+    <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-50 text-sm font-semibold text-brand-600 dark:bg-brand-700/30 dark:text-brand-100">
+      {{ a.nama[0]|upper if a.status == "diterima" else "?" }}
+    </div>
+    <div class="min-w-0 flex-1">
+      <p class="truncate text-[15px] font-semibold">{{ a.nama if a.status == "diterima" else "Kartu tidak dikenal" }}</p>
+      <p class="text-xs text-[#5B6B80] dark:text-[#9AA8B8]"><span class="font-mono tabular-nums">{{ a.uid }}</span> &middot; <span class="tabular-nums">{{ a.jam }}</span></p>
+    </div>
+    {% if a.status == "diterima" %}
+    <span class="flex items-center gap-1.5 text-[13px] font-semibold text-emerald-700 dark:text-emerald-400"><span class="h-2 w-2 rounded-full bg-emerald-600 dark:bg-emerald-400"></span>Diterima</span>
+    {% else %}
+    <span class="flex items-center gap-1.5 text-[13px] font-semibold text-rose-700 dark:text-rose-400"><span class="h-2 w-2 rounded-full bg-rose-600 dark:bg-rose-400"></span>Ditolak</span>
+    {% endif %}
+  </li>
+  {% else %}
+  <li class="py-8 text-center text-sm text-[#5B6B80] dark:text-[#9AA8B8]">Belum ada absen. Tempelkan kartu di pembaca.</li>
+  {% endfor %}
+</ul>
+<span id="id-terbaru" data-id="{{ id_terbaru }}" hidden></span>

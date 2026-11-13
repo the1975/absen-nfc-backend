@@ -15,6 +15,12 @@ tailwind.config = {
   } }
 }
 </script>
+<script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.4/dist/htmx.min.js"></script>
+<style>
+@keyframes sorot{from{background-color:rgba(23,105,210,.22)}to{background-color:transparent}}
+.baru{animation:sorot 2.4s ease-out}
+@media (prefers-reduced-motion:reduce){.baru{animation:none}}
+</style>
 </head>
 <body class="bg-[#F4F7FB] font-sans text-[#0F1B2D] antialiased dark:bg-[#0E141B] dark:text-[#E6EDF5]">
 
@@ -41,5 +47,10 @@ tailwind.config = {
   </a>
 </nav>
 
+<script>
+function sinkron(){var e=document.getElementById("id-terbaru");if(e){window.idTerakhir=Number(e.dataset.id);}}
+sinkron();
+document.body.addEventListener("htmx:afterSwap",sinkron);
+</script>
 </body>
 </html>
