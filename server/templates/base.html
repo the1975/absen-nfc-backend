@@ -17,15 +17,19 @@ tailwind.config = {
 }
 </script>
 <script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.4/dist/htmx.min.js"></script>
+<script src="https://unpkg.com/idiomorph@0.7.4/dist/idiomorph-ext.min.js"></script>
 <style>
 @keyframes sorot{from{background-color:rgba(23,105,210,.22)}to{background-color:transparent}}
-.baru{animation:sorot 2.4s ease-out}
+@keyframes masukBaris{from{opacity:0;max-height:0;padding-top:0;padding-bottom:0;transform:translateY(-8px);overflow:hidden}to{opacity:1;max-height:140px;padding-top:12px;padding-bottom:12px;transform:none;overflow:hidden}}
+.baru{animation:masukBaris .5s cubic-bezier(.2,.8,.2,1) both,sorot 2.4s ease-out}
+@keyframes angkaMasuk{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.angka-ganti{animation:angkaMasuk .4s ease-out}
 @keyframes naik{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 .masuk{animation:naik .35s ease-out both}
-@media (prefers-reduced-motion:reduce){.baru,.masuk{animation:none}}
+@media (prefers-reduced-motion:reduce){.baru,.masuk,.angka-ganti{animation:none}}
 </style>
 </head>
-<body class="bg-[#F4F7FB] font-sans text-[#0F1B2D] antialiased">
+<body hx-ext="morph" class="bg-[#F4F7FB] font-sans text-[#0F1B2D] antialiased">
 
 <aside class="fixed inset-y-0 left-0 hidden w-60 flex-col gap-1 border-r border-[#E6ECF4] bg-white p-4 md:flex">
   <div class="flex items-center gap-3 px-3 pb-6 pt-2">
@@ -59,6 +63,16 @@ tailwind.config = {
 function sinkron(){var e=document.getElementById("id-terbaru");if(e){window.idTerakhir=Number(e.dataset.id);window.filterStatus=e.dataset.status;}}
 sinkron();
 document.body.addEventListener("htmx:afterSwap",sinkron);
+var lama = {};
+function catat(){document.querySelectorAll("[data-angka]").forEach(function(e){lama[e.dataset.angka]=e.textContent.trim();});}
+catat();
+document.body.addEventListener("htmx:afterSwap",function(){
+  document.querySelectorAll("[data-angka]").forEach(function(e){
+    var k=e.dataset.angka, v=e.textContent.trim();
+    if(lama[k]!==undefined && lama[k]!==v){e.classList.remove("angka-ganti");void e.offsetWidth;e.classList.add("angka-ganti");}
+    lama[k]=v;
+  });
+});
 </script>
 {% block skrip %}{% endblock %}
 </body>

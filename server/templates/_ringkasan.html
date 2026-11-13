@@ -2,21 +2,21 @@
   <p class="text-[13px] font-medium">{{ tanggal }}</p>
   <div class="mt-3 flex">
     <div class="flex-1 border-r border-white/30 pr-3">
-      <div class="text-[34px] font-bold leading-none tabular-nums">{{ diterima }}</div>
+      <div class="text-[34px] font-bold leading-none tabular-nums" data-angka="diterima">{{ diterima }}</div>
       <div class="mt-1 text-[13px]">Diterima</div>
     </div>
     <div class="flex-1 border-r border-white/30 px-3">
-      <div class="text-[34px] font-bold leading-none tabular-nums">{{ ditolak }}</div>
+      <div class="text-[34px] font-bold leading-none tabular-nums" data-angka="ditolak">{{ ditolak }}</div>
       <div class="mt-1 text-[13px]">Ditolak</div>
     </div>
     <div class="flex-1 pl-3">
-      <div class="text-[34px] font-bold leading-none tabular-nums">{{ jumlah_kartu }}</div>
+      <div class="text-[34px] font-bold leading-none tabular-nums" data-angka="kartu">{{ jumlah_kartu }}</div>
       <div class="mt-1 text-[13px]">Kartu</div>
     </div>
   </div>
   <div class="mt-4 flex items-center gap-2 border-t border-white/25 pt-3 text-[13px]">
     <span class="h-2 w-2 rounded-full bg-white"></span>
-    {% if tap_terakhir %}Tap terakhir {{ tap_terakhir }}{% else %}Belum ada tap{% endif %}
+    <span data-angka="tap" class="inline-block">{% if tap_terakhir %}Tap terakhir {{ tap_terakhir }}{% else %}Belum ada tap{% endif %}</span>
   </div>
 </section>
 
@@ -33,7 +33,7 @@
 <ul class="mt-3 space-y-2">
   {% for a in absen %}
   {% set ok = a.status == "diterima" %}
-  <li class="flex items-center gap-3 rounded-2xl bg-white p-3 ring-1 ring-[#E6ECF4] shadow-[0_1px_2px_rgba(15,27,45,.05)] transition active:scale-[.99] active:bg-brand-50 {% if a.baru %}baru{% elif awal %}masuk{% endif %}"{% if awal %} style="animation-delay:{{ loop.index0 * 45 }}ms"{% endif %}>
+  <li id="absen-{{ a.id }}" class="flex items-center gap-3 rounded-2xl bg-white p-3 ring-1 ring-[#E6ECF4] shadow-[0_1px_2px_rgba(15,27,45,.05)] transition active:scale-[.99] active:bg-brand-50 {% if a.baru %}baru{% elif awal %}masuk{% endif %}"{% if awal %} style="animation-delay:{{ loop.index0 * 45 }}ms"{% endif %}>
     <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[15px] font-semibold {% if ok %}bg-brand-50 text-brand-600{% else %}bg-rose-50 text-rose-600{% endif %}">
       {{ a.nama[0]|upper if ok else "?" }}
     </div>
