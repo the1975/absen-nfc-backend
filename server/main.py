@@ -1,13 +1,21 @@
-import sqlite3
-from contextlib import closing
+import re
+from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
-from fastapi import FastAPI
+from html import escape
+from pathlib import Path
+
+from fastapi import FastAPI, Form, Request
+from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
-DB_FILE = "absen.db"
+from db import koneksi
+
 WIB = timezone(timedelta(hours=7))
+FORMAT_WAKTU = "%Y-%m-%d %H:%M:%S"
 
 app = FastAPI(title="Absen NFC Perpus")
+templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 
 
 class Absen(BaseModel):
@@ -25,33 +33,34 @@ class Tap(BaseModel):
     uid: str
 
 
-def koneksi():
-    return sqlite3.connect(DB_FILE)
-
-
 def sekarang():
-    return datetime.now(WIB).strftime("%Y-%m-%d %H:%M:%S")
+    return datetime.now(WIB).strftime(FORMAT_WAKTU)
+
+
+@contextmanager
+def kursor():
+    # Satu koneksi per permintaan: commit kalau sukses, selalu ditutup
+    db = koneksi()
+    try:
+        with db.cursor() as cur:
+            yield cur
+        db.commit()
+    finally:
+        db.close()
+
+
+def rapikan(baris):
+    # Kolom DATETIME dijadikan teks, sama seperti waktu di SQLite dulu
+    return {k: (v.strftime(FORMAT_WAKTU) if isinstance(v, datetime) else v)
+            for k, v in baris.items()}
 
 
 def siapkan_db():
-    with closing(koneksi()) as db:
-        db.execute(
-            """CREATE TABLE IF NOT EXISTS absen (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                uid TEXT NOT NULL,
-                nama TEXT NOT NULL,
-                status TEXT NOT NULL,
-                waktu TEXT NOT NULL
-            )"""
-        )
-        db.execute(
-            """CREATE TABLE IF NOT EXISTS kartu (
-                uid TEXT PRIMARY KEY,
-                nama TEXT NOT NULL,
-                dibuat TEXT NOT NULL
-            )"""
-        )
-        db.commit()
+    skema = (Path(__file__).parent / "skema.sql").read_text()
+    with kursor() as cur:
+        for pernyataan in skema.split(";"):
+            if pernyataan.strip():
+                cur.execute(pernyataan)
 
 
 siapkan_db()
@@ -66,46 +75,43 @@ def beranda():
 def daftar_kartu(data: KartuBaru):
     uid = data.uid.strip().upper()
     nama = data.nama.strip()
-    with closing(koneksi()) as db:
-        db.execute(
-            "INSERT INTO kartu (uid, nama, dibuat) VALUES (?, ?, ?) "
-            "ON CONFLICT(uid) DO UPDATE SET nama = excluded.nama",
+    with kursor() as cur:
+        cur.execute(
+            "INSERT INTO kartu (uid, nama, dibuat) VALUES (%s, %s, %s) "
+            "ON DUPLICATE KEY UPDATE nama = VALUES(nama)",
             (uid, nama, sekarang()),
         )
-        db.commit()
     return {"ok": True, "uid": uid, "nama": nama}
 
 
 @app.get("/kartu")
 def daftar_semua_kartu():
-    with closing(koneksi()) as db:
-        db.row_factory = sqlite3.Row
-        baris = db.execute("SELECT uid, nama, dibuat FROM kartu ORDER BY nama").fetchall()
-    return [dict(b) for b in baris]
+    with kursor() as cur:
+        cur.execute("SELECT uid, nama, dibuat FROM kartu ORDER BY nama")
+        return [rapikan(b) for b in cur.fetchall()]
 
 
 @app.delete("/kartu/{uid}")
 def hapus_kartu(uid: str):
-    with closing(koneksi()) as db:
-        hasil = db.execute("DELETE FROM kartu WHERE uid = ?", (uid.strip().upper(),))
-        db.commit()
-    return {"ok": True, "dihapus": hasil.rowcount}
+    with kursor() as cur:
+        dihapus = cur.execute("DELETE FROM kartu WHERE uid = %s", (uid.strip().upper(),))
+    return {"ok": True, "dihapus": dihapus}
 
 
 @app.post("/tap")
 def tap_kartu(data: Tap):
     uid = data.uid.strip().upper()
     waktu = sekarang()
-    with closing(koneksi()) as db:
-        baris = db.execute("SELECT nama FROM kartu WHERE uid = ?", (uid,)).fetchone()
+    with kursor() as cur:
+        cur.execute("SELECT nama FROM kartu WHERE uid = %s", (uid,))
+        baris = cur.fetchone()
         izin = baris is not None
-        nama = baris[0] if izin else "-"
+        nama = baris["nama"] if izin else "-"
         status = "diterima" if izin else "ditolak"
-        db.execute(
-            "INSERT INTO absen (uid, nama, status, waktu) VALUES (?, ?, ?, ?)",
+        cur.execute(
+            "INSERT INTO absen (uid, nama, status, waktu) VALUES (%s, %s, %s, %s)",
             (uid, nama, status, waktu),
         )
-        db.commit()
     print(f"[{waktu}] {nama} ({uid}) -> {status}")
     return {"izin": izin, "nama": nama, "waktu": waktu}
 
@@ -113,32 +119,21 @@ def tap_kartu(data: Tap):
 @app.post("/absen")
 def terima_absen(data: Absen):
     waktu = sekarang()
-    with closing(koneksi()) as db:
-        db.execute(
-            "INSERT INTO absen (uid, nama, status, waktu) VALUES (?, ?, ?, ?)",
+    with kursor() as cur:
+        cur.execute(
+            "INSERT INTO absen (uid, nama, status, waktu) VALUES (%s, %s, %s, %s)",
             (data.uid, data.nama, data.status, waktu),
         )
-        db.commit()
     print(f"[{waktu}] {data.nama} ({data.uid}) -> {data.status}")
     return {"ok": True, "waktu": waktu}
 
 
 @app.get("/absen")
 def daftar_absen():
-    with closing(koneksi()) as db:
-        db.row_factory = sqlite3.Row
-        baris = db.execute(
-            "SELECT id, uid, nama, status, waktu FROM absen ORDER BY id DESC LIMIT 50"
-        ).fetchall()
-    return [dict(b) for b in baris]
+    with kursor() as cur:
+        cur.execute("SELECT id, uid, nama, status, waktu FROM absen ORDER BY id DESC LIMIT 50")
+        return [rapikan(b) for b in cur.fetchall()]
 
-
-from pathlib import Path
-from fastapi import Request
-from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
-
-templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 
 HARI = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"]
 BULAN = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli",
@@ -152,7 +147,7 @@ def tanggal_indo():
 
 def waktu_relatif(teks):
     try:
-        t = datetime.strptime(teks, "%Y-%m-%d %H:%M:%S").replace(tzinfo=WIB)
+        t = datetime.strptime(teks, FORMAT_WAKTU).replace(tzinfo=WIB)
     except ValueError:
         return teks
     selisih = int((datetime.now(WIB) - t).total_seconds())
@@ -166,19 +161,24 @@ def waktu_relatif(teks):
 
 
 def ambil_data(terakhir_id=None, status="semua"):
-    hari_ini = sekarang()[:10] + "%"
+    awal_hari = sekarang()[:10] + " 00:00:00"
     kondisi = {"diterima": "WHERE status = 'diterima'",
                "ditolak": "WHERE status != 'diterima'"}.get(status, "")
-    with closing(koneksi()) as db:
-        db.row_factory = sqlite3.Row
-        absen = [dict(b) for b in db.execute(
-            f"SELECT id, uid, nama, status, waktu FROM absen {kondisi} ORDER BY id DESC LIMIT 20")]
-        diterima = db.execute(
-            "SELECT COUNT(*) FROM absen WHERE status = 'diterima' AND waktu LIKE ?", (hari_ini,)).fetchone()[0]
-        ditolak = db.execute(
-            "SELECT COUNT(*) FROM absen WHERE status != 'diterima' AND waktu LIKE ?", (hari_ini,)).fetchone()[0]
-        jumlah_kartu = db.execute("SELECT COUNT(*) FROM kartu").fetchone()[0]
-        terbaru = db.execute("SELECT id, waktu FROM absen ORDER BY id DESC LIMIT 1").fetchone()
+    with kursor() as cur:
+        cur.execute(
+            f"SELECT id, uid, nama, status, waktu FROM absen {kondisi} ORDER BY id DESC LIMIT 20")
+        absen = [rapikan(b) for b in cur.fetchall()]
+        cur.execute(
+            "SELECT COUNT(*) AS n FROM absen WHERE status = 'diterima' AND waktu >= %s", (awal_hari,))
+        diterima = cur.fetchone()["n"]
+        cur.execute(
+            "SELECT COUNT(*) AS n FROM absen WHERE status != 'diterima' AND waktu >= %s", (awal_hari,))
+        ditolak = cur.fetchone()["n"]
+        cur.execute("SELECT COUNT(*) AS n FROM kartu")
+        jumlah_kartu = cur.fetchone()["n"]
+        cur.execute("SELECT id, waktu FROM absen ORDER BY id DESC LIMIT 1")
+        terbaru = cur.fetchone()
+    terbaru = rapikan(terbaru) if terbaru else None
     for a in absen:
         a["jam"] = a["waktu"][11:16]
         a["baru"] = terakhir_id is not None and a["id"] > terakhir_id
@@ -195,7 +195,6 @@ def ambil_data(terakhir_id=None, status="semua"):
 def dashboard(request: Request):
     data = ambil_data()
     data["awal"] = True
-    data["tanggal"] = tanggal_indo()
     return templates.TemplateResponse(request=request, name="beranda.html", context=data)
 
 
@@ -207,16 +206,10 @@ def dashboard_bagian(request: Request, terakhir: int = 0, status: str = "semua")
         request=request, name="_ringkasan.html", context=ambil_data(terakhir, status))
 
 
-import re
-from html import escape
-from fastapi import Form
-
-
 def semua_kartu():
-    with closing(koneksi()) as db:
-        db.row_factory = sqlite3.Row
-        return [dict(b) for b in db.execute(
-            "SELECT uid, nama FROM kartu ORDER BY nama COLLATE NOCASE")]
+    with kursor() as cur:
+        cur.execute("SELECT uid, nama FROM kartu ORDER BY nama")
+        return cur.fetchall()
 
 
 @app.get("/dashboard/kartu", response_class=HTMLResponse)
@@ -236,13 +229,12 @@ def tambah_kartu_web(request: Request, uid: str = Form(""), nama: str = Form("")
         galat = "Nama wajib diisi, maksimal 40 karakter."
     if galat:
         return HTMLResponse(escape(galat), headers={"HX-Retarget": "#pesan-form", "HX-Reswap": "innerHTML"})
-    with closing(koneksi()) as db:
-        db.execute(
-            "INSERT INTO kartu (uid, nama, dibuat) VALUES (?, ?, ?) "
-            "ON CONFLICT(uid) DO UPDATE SET nama = excluded.nama",
+    with kursor() as cur:
+        cur.execute(
+            "INSERT INTO kartu (uid, nama, dibuat) VALUES (%s, %s, %s) "
+            "ON DUPLICATE KEY UPDATE nama = VALUES(nama)",
             (uid, nama, sekarang()),
         )
-        db.commit()
     return templates.TemplateResponse(
         request=request, name="_daftar_kartu.html", context={"kartu": semua_kartu()},
         headers={"HX-Trigger": "kartu-tersimpan"})
@@ -250,8 +242,7 @@ def tambah_kartu_web(request: Request, uid: str = Form(""), nama: str = Form("")
 
 @app.delete("/dashboard/kartu/{uid}", response_class=HTMLResponse)
 def hapus_kartu_web(request: Request, uid: str):
-    with closing(koneksi()) as db:
-        db.execute("DELETE FROM kartu WHERE uid = ?", (uid.strip().upper(),))
-        db.commit()
+    with kursor() as cur:
+        cur.execute("DELETE FROM kartu WHERE uid = %s", (uid.strip().upper(),))
     return templates.TemplateResponse(
         request=request, name="_daftar_kartu.html", context={"kartu": semua_kartu()})
