@@ -17,28 +17,31 @@ const int PIN_BUZZER = 13;
 
 MFRC522 rfid(5, 21);
 
-void sambungWifi() {
+// Mencoba menyambung sampai detikMaks detik, hasil true kalau berhasil
+bool sambungWifi(int detikMaks) {
   Serial.print("Menyambung Wi-Fi");
+  WiFi.mode(WIFI_STA);
+  WiFi.disconnect();
   WiFi.begin(WIFI_SSID, WIFI_PASS, 6);
-  int percobaan = 0;
-  while (WiFi.status() != WL_CONNECTED && percobaan < 20) {
+  for (int i = 0; i < detikMaks * 2 && WiFi.status() != WL_CONNECTED; i++) {
     delay(500);
     Serial.print(".");
-    percobaan++;
   }
   Serial.println();
   if (WiFi.status() == WL_CONNECTED) {
     Serial.print("Wi-Fi tersambung, IP: ");
     Serial.println(WiFi.localIP());
-  } else {
-    Serial.println("Wi-Fi gagal");
+    return true;
   }
+  Serial.print("Wi-Fi gagal, kode status: ");
+  Serial.println(WiFi.status());
+  return false;
 }
 
 // Hasil: 1 = diizinkan, 0 = ditolak, -1 = server tidak terjangkau
 int tanyaServer(String uid, String &nama) {
   nama = "-";
-  if (WiFi.status() != WL_CONNECTED) {
+  if (WiFi.status() != WL_CONNECTED && !sambungWifi(15)) {
     return -1;
   }
   HTTPClient http;
@@ -118,7 +121,7 @@ void setup() {
   Serial.begin(115200);
   SPI.begin();
   rfid.PCD_Init();
-  sambungWifi();
+  sambungWifi(30);
   Serial.println("Siap, tempelkan kartu");
 }
 
