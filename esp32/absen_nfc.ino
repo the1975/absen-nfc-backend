@@ -7,6 +7,9 @@ const char* WIFI_SSID = "Wokwi-GUEST";
 const char* WIFI_PASS = "";
 const char* URL_DASAR = "https://41e8120c54c6e7.lhr.life";
 
+// Kunci rahasia untuk server: isi sama dengan API_KEY di file .env
+const char* API_KEY = "GANTI_KUNCI";
+
 const int PIN_LED_HIJAU = 26;
 const int PIN_LED_MERAH = 33;
 const int PIN_PINTU = 32;
@@ -42,6 +45,7 @@ int tanyaServer(String uid, String &nama) {
   http.begin(String(URL_DASAR) + "/tap");
   http.setTimeout(5000);
   http.addHeader("Content-Type", "application/json");
+  http.addHeader("X-API-Key", API_KEY);
   int kode = http.POST("{\"uid\":\"" + uid + "\"}");
   Serial.print("Balasan server, kode: ");
   Serial.println(kode);
