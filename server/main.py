@@ -1,14 +1,18 @@
+import base64
+import hashlib
+import hmac
 import os
 import re
 import secrets
+import time
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from html import escape
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, Form, HTTPException, Request
-from fastapi.responses import HTMLResponse
-from fastapi.security import APIKeyHeader, HTTPBasic, HTTPBasicCredentials
+from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.security import APIKeyHeader
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
@@ -20,7 +24,9 @@ DASHBOARD_USER = os.getenv("DASHBOARD_USER", "")
 DASHBOARD_PASSWORD = os.getenv("DASHBOARD_PASSWORD", "")
 
 kunci_header = APIKeyHeader(name="X-API-Key", auto_error=False)
-login_basic = HTTPBasic(auto_error=False)
+SESSION_SECRET = os.getenv("SESSION_SECRET", "")
+NAMA_COOKIE = "sesi"
+UMUR_SESI = 8 * 3600  # detik
 
 
 def sama(a, b):
@@ -36,16 +42,44 @@ def wajib_kunci(kunci: str = Depends(kunci_header)):
         raise HTTPException(status_code=401, detail="Kunci API salah atau tidak ada")
 
 
-def wajib_login(kredensial: HTTPBasicCredentials = Depends(login_basic)):
-    # Untuk dashboard dan data: browser menampilkan kotak login
-    if not DASHBOARD_USER or not DASHBOARD_PASSWORD:
-        raise HTTPException(status_code=503,
-                            detail="DASHBOARD_USER dan DASHBOARD_PASSWORD belum diatur di .env")
-    pengguna_ok = kredensial is not None and sama(kredensial.username, DASHBOARD_USER)
-    sandi_ok = kredensial is not None and sama(kredensial.password, DASHBOARD_PASSWORD)
-    if not (pengguna_ok and sandi_ok):
-        raise HTTPException(status_code=401, detail="Login diperlukan",
-                            headers={"WWW-Authenticate": 'Basic realm="Absen NFC"'})
+def tanda_tangan(isi):
+    return hmac.new(SESSION_SECRET.encode(), isi.encode(), hashlib.sha256).hexdigest()
+
+
+def buat_token(pengguna):
+    # Token sesi = pengguna|kedaluwarsa (dalam hex) + tanda tangan HMAC, jadi tidak bisa dipalsukan
+    isi = f"{pengguna}|{int(time.time()) + UMUR_SESI}".encode().hex()
+    return f"{isi}.{tanda_tangan(isi)}"
+
+
+def baca_token(token):
+    # Mengembalikan nama pengguna kalau token sah dan belum kedaluwarsa, selain itu None
+    try:
+        isi, tanda = token.rsplit(".", 1)
+        if not sama(tanda, tanda_tangan(isi)):
+            return None
+        pengguna, habis = bytes.fromhex(isi).decode().rsplit("|", 1)
+        return pengguna if int(habis) > time.time() else None
+    except Exception:
+        return None
+
+
+def sudah_login(request: Request):
+    return bool(SESSION_SECRET) and baca_token(request.cookies.get(NAMA_COOKIE, "")) is not None
+
+
+def wajib_login(request: Request):
+    # Untuk dashboard dan data: harus punya cookie sesi yang sah
+    if not SESSION_SECRET:
+        raise HTTPException(status_code=503, detail="SESSION_SECRET belum diatur di .env")
+    if sudah_login(request):
+        return
+    if request.headers.get("hx-request"):
+        # Pembaruan otomatis dashboard: arahkan seluruh halaman ke login
+        raise HTTPException(status_code=401, detail="Sesi habis", headers={"HX-Redirect": "/login"})
+    if request.url.path.startswith("/dashboard"):
+        raise HTTPException(status_code=303, detail="Login diperlukan", headers={"Location": "/login"})
+    raise HTTPException(status_code=401, detail="Login diperlukan")
 
 WIB = timezone(timedelta(hours=7))
 FORMAT_WAKTU = "%Y-%m-%d %H:%M:%S"
@@ -112,6 +146,37 @@ def siapkan_db():
 
 
 siapkan_db()
+
+
+@app.get("/login", response_class=HTMLResponse)
+def halaman_login(request: Request):
+    if sudah_login(request):
+        return RedirectResponse("/dashboard", status_code=303)
+    return templates.TemplateResponse(request=request, name="login.html", context={"galat": None})
+
+
+@app.post("/login", response_class=HTMLResponse)
+def proses_login(request: Request, username: str = Form(""), password: str = Form("")):
+    if not (SESSION_SECRET and DASHBOARD_USER and DASHBOARD_PASSWORD):
+        raise HTTPException(status_code=503,
+                            detail="SESSION_SECRET, DASHBOARD_USER, dan DASHBOARD_PASSWORD belum diatur di .env")
+    pengguna_ok = sama(username.strip(), DASHBOARD_USER)
+    sandi_ok = sama(password, DASHBOARD_PASSWORD)
+    if not (pengguna_ok and sandi_ok):
+        return templates.TemplateResponse(
+            request=request, name="login.html", status_code=401,
+            context={"galat": "Nama pengguna atau sandi salah.", "nama": username})
+    jawab = RedirectResponse("/dashboard", status_code=303)
+    jawab.set_cookie(NAMA_COOKIE, buat_token(DASHBOARD_USER), max_age=UMUR_SESI,
+                     httponly=True, samesite="lax", secure=request.url.scheme == "https")
+    return jawab
+
+
+@app.post("/logout")
+def keluar():
+    jawab = RedirectResponse("/login", status_code=303)
+    jawab.delete_cookie(NAMA_COOKIE)
+    return jawab
 
 
 @app.get("/")
