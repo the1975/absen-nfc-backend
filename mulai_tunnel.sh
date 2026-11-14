@@ -5,7 +5,7 @@ pkill -f "nokey@localhost.run" 2>/dev/null
 nohup ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=30 -R 80:localhost:8000 nokey@localhost.run > /tmp/tunnel.log 2>&1 &
 for i in $(seq 1 25); do
   sleep 1
-  HOST=$(grep -aEo '[0-9a-f]{8,}\.lhr\.life' /tmp/tunnel.log | tail -1)
+  HOST=$(grep -aEo '[0-9a-f]{8,}(\.[a-z]+)?\.lhr\.life' /tmp/tunnel.log | tail -1)
   if [ -n "$HOST" ]; then
     echo "Alamat tunnel: https://$HOST"
     exit 0
