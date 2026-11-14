@@ -1,14 +1,19 @@
 #include <SPI.h>
 #include <MFRC522.h>
 #include <WiFi.h>
+#include <WiFiClientSecure.h>
 #include <HTTPClient.h>
 
-const char* WIFI_SSID = "Wokwi-GUEST";
-const char* WIFI_PASS = "";
-const char* URL_DASAR = "https://41e8120c54c6e7.lhr.life";
-
-// Kunci rahasia untuk server: isi sama dengan API_KEY di file .env
+// ===== Ganti dua baris ini sebelum dijalankan =====
+// Wokwi: alamat tunnel (https://...). Alat asli: alamat lokal server, misalnya http://192.168.1.20:8000
+const char* URL_DASAR = "https://GANTI-ALAMAT-TUNNEL";
+// Samakan dengan API_KEY di file .env (jangan unggah kunci asli ke GitHub)
 const char* API_KEY = "GANTI_KUNCI";
+
+// ===== Wi-Fi =====
+const char* WIFI_SSID = "Wokwi-GUEST";  // alat asli: nama Wi-Fi sendiri
+const char* WIFI_PASS = "";             // alat asli: sandi Wi-Fi
+const int WIFI_KANAL = 6;               // Wokwi: 6 (lebih cepat). Alat asli: 0 (otomatis)
 
 const int PIN_LED_HIJAU = 26;
 const int PIN_LED_MERAH = 33;
@@ -17,15 +22,17 @@ const int PIN_BUZZER = 13;
 
 MFRC522 rfid(5, 21);
 
-// Mencoba menyambung sampai detikMaks detik, hasil true kalau berhasil
+// Menyambung Wi-Fi; di tengah waktu tunggu, konfigurasi dibersihkan lalu dicoba lagi
 bool sambungWifi(int detikMaks) {
   Serial.print("Menyambung Wi-Fi");
-  WiFi.mode(WIFI_STA);
-  WiFi.disconnect();
-  WiFi.begin(WIFI_SSID, WIFI_PASS, 6);
+  WiFi.begin(WIFI_SSID, WIFI_PASS, WIFI_KANAL);
   for (int i = 0; i < detikMaks * 2 && WiFi.status() != WL_CONNECTED; i++) {
     delay(500);
     Serial.print(".");
+    if (i == detikMaks) {
+      WiFi.disconnect(true);
+      WiFi.begin(WIFI_SSID, WIFI_PASS, WIFI_KANAL);
+    }
   }
   Serial.println();
   if (WiFi.status() == WL_CONNECTED) {
@@ -38,20 +45,44 @@ bool sambungWifi(int detikMaks) {
   return false;
 }
 
-// Hasil: 1 = diizinkan, 0 = ditolak, -1 = server tidak terjangkau
+// Hasil: 1 = diizinkan, 0 = ditolak, -1 = server tidak terjangkau, -2 = kunci API salah
 int tanyaServer(String uid, String &nama) {
   nama = "-";
   if (WiFi.status() != WL_CONNECTED && !sambungWifi(15)) {
     return -1;
   }
+
+  WiFiClientSecure klienAman;
+  WiFiClient klienBiasa;
   HTTPClient http;
-  http.begin(String(URL_DASAR) + "/tap");
-  http.setTimeout(5000);
+  String url = String(URL_DASAR) + "/tap";
+  bool mulai;
+  if (url.startsWith("https://")) {
+    klienAman.setInsecure();  // simulasi: sertifikat tunnel tidak diperiksa
+    mulai = http.begin(klienAman, url);
+  } else {
+    mulai = http.begin(klienBiasa, url);
+  }
+  if (!mulai) {
+    Serial.println("Alamat server tidak valid");
+    return -1;
+  }
+  http.setTimeout(10000);
   http.addHeader("Content-Type", "application/json");
   http.addHeader("X-API-Key", API_KEY);
+
   int kode = http.POST("{\"uid\":\"" + uid + "\"}");
   Serial.print("Balasan server, kode: ");
   Serial.println(kode);
+  if (kode < 0) {
+    Serial.println(HTTPClient::errorToString(kode));
+    http.end();
+    return -1;
+  }
+  if (kode == 401) {
+    http.end();
+    return -2;
+  }
   if (kode != 200) {
     http.end();
     return -1;
@@ -82,6 +113,7 @@ String bacaKartu() {
   }
   uid.toUpperCase();
   rfid.PICC_HaltA();
+  rfid.PCD_StopCrypto1();
   return uid;
 }
 
@@ -148,6 +180,9 @@ void loop() {
     digitalWrite(PIN_LED_HIJAU, LOW);
   } else if (hasil == 0) {
     Serial.println("Kartu tidak terdaftar, akses ditolak");
+    tolak();
+  } else if (hasil == -2) {
+    Serial.println("Kunci API salah, samakan API_KEY dengan file .env");
     tolak();
   } else {
     Serial.println("Server tidak terjangkau, akses ditolak");
