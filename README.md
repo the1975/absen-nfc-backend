@@ -60,6 +60,11 @@ Sistem absensi perpustakaan berbasis IoT: kartu NFC ditempelkan ke pembaca, serv
 - Setiap kartu menyimpan UID, nama, dan NPM kampus 10 digit (boleh kosong).
 - Mendaftarkan UID yang sudah ada memperbarui datanya, bukan membuat data ganda.
 
+**Keamanan**
+- Dashboard dan data kartu dilindungi login (HTTP Basic), pengguna dan sandinya diatur di `.env`.
+- Perangkat ESP32 wajib membawa kunci rahasia lewat header `X-API-Key` untuk memanggil `/tap`.
+- Server menolak semua permintaan dengan pesan jelas kalau kunci atau sandi belum diatur.
+
 **Data dan integrasi**
 - REST API untuk perangkat dan pengujian, dengan dokumentasi interaktif otomatis di `/docs`.
 - Skema tabel dibuat otomatis saat server pertama kali jalan.
@@ -239,6 +244,8 @@ Browser meminta bagian ringkasan dari `/dashboard/bagian` tiap 5 detik. Idiomorp
 | GET | `/dashboard/kartu` | Halaman kelola kartu |
 | GET | `/docs` | Dokumentasi API interaktif (Swagger) |
 
+Akses: `/tap` dan `POST /absen` memakai header `X-API-Key` (untuk perangkat). Semua alamat lain, kecuali `/` dan `/docs`, meminta login dashboard.
+
 Contoh balasan `/tap` untuk kartu terdaftar:
 
 ```json
@@ -322,8 +329,19 @@ Buka `.env` dan sesuaikan:
 | `DB_PASSWORD` | sandi yang dibuat di langkah 3 |
 | `DB_NAME` | `absen_nfc` |
 | `DB_SOCKET` | biarkan kosong |
+| `API_KEY` | kunci rahasia untuk ESP32, berupa teks acak (cara membuatnya di bawah) |
+| `DASHBOARD_USER` | nama pengguna untuk login dashboard, misalnya `admin` |
+| `DASHBOARD_PASSWORD` | sandi untuk login dashboard |
 
 File `.env` tidak ikut ke GitHub, jadi aman diisi sandi.
+
+Untuk membuat teks acak yang kuat bagi `API_KEY` dan `DASHBOARD_PASSWORD`, jalankan perintah ini dua kali dan salin hasilnya:
+
+```bash
+python -c "import secrets; print(secrets.token_urlsafe(24))"
+```
+
+Server membalas `503` dan menolak semua permintaan kalau ketiga isian keamanan ini masih kosong.
 
 ### 6. Jalankan server
 
@@ -334,7 +352,7 @@ cd server
 python -m uvicorn main:app --host 0.0.0.0 --port 8000
 ```
 
-Berhasil jika muncul tulisan `Application startup complete`. Buka **http://localhost:8000/dashboard** di browser. Dashboard masih kosong, itu normal.
+Berhasil jika muncul tulisan `Application startup complete`. Buka **http://localhost:8000/dashboard** di browser. Browser meminta login: isi `DASHBOARD_USER` dan `DASHBOARD_PASSWORD` dari `.env`. Dashboard masih kosong, itu normal.
 
 ### 7. Daftarkan kartu
 
@@ -346,7 +364,7 @@ Buka **http://localhost:8000/dashboard/kartu**, tekan tombol tambah, lalu isi:
 | Nama | nama bebas |
 | NPM | 10 digit, boleh dikosongkan |
 
-Untuk uji cepat tanpa Wokwi, buka **http://localhost:8000/docs**, pilih `POST /tap`, tekan **Try it out**, isi `{"uid": "AABBCCDD"}`, lalu **Execute**. Balasan `"izin": true` berarti kartu dikenali, dan barisnya muncul di dashboard.
+Untuk uji cepat tanpa Wokwi, buka **http://localhost:8000/docs**, tekan **Authorize**, isi kolom `X-API-Key` dengan `API_KEY` dari `.env`, lalu tutup. Pilih `POST /tap`, tekan **Try it out**, isi `{"uid": "AABBCCDD"}`, lalu **Execute**. Balasan `"izin": true` berarti kartu dikenali, dan barisnya muncul di dashboard.
 
 ### 8. Buat simulasi di Wokwi
 
@@ -355,7 +373,7 @@ Untuk uji cepat tanpa Wokwi, buka **http://localhost:8000/docs**, pilih `POST /t
 3. Hubungkan sesuai tabel di bagian [Rangkaian Perangkat](#rangkaian-perangkat).
 4. Buka **Library Manager** (ikon + di tab kode), cari **MFRC522**, lalu tambahkan.
 5. Salin seluruh isi `esp32/absen_nfc.ino` dari repositori ini ke `sketch.ino` di Wokwi.
-6. Biarkan dulu isi `URL_DASAR`, kita ubah di langkah berikutnya.
+6. Biarkan dulu isi `URL_DASAR`, kita ubah di langkah berikutnya. Ganti juga `GANTI_KUNCI` pada baris `API_KEY` dengan nilai `API_KEY` dari `.env`.
 
 ### 9. Hubungkan Wokwi ke server
 
@@ -395,6 +413,8 @@ Tekan **Play** di Wokwi, tunggu Serial Monitor menampilkan `Wi-Fi tersambung` da
 | Dashboard tampil tanpa gaya | Tidak ada internet untuk memuat CDN | Sambungkan internet |
 | Wokwi: `Server tidak terjangkau` (kode `-1`) | Alamat tunnel berganti, tunnel mati, atau server mati | Cek ketiganya, salin alamat tunnel terbaru |
 | Wokwi gagal compile, `MFRC522.h` tidak ditemukan | Pustaka belum ditambahkan | Ulangi langkah 8 nomor 4 |
+| Wokwi: kartu terdaftar tapi selalu ditolak, Serial menampilkan kode 401 | `API_KEY` di sketsa berbeda dengan di `.env` | Samakan keduanya, lalu jalankan ulang simulasi |
+| Server membalas `503` | `API_KEY`, `DASHBOARD_USER`, atau `DASHBOARD_PASSWORD` belum diisi di `.env` | Isi ketiganya, lalu restart server |
 
 ---
 
@@ -405,7 +425,11 @@ Tekan **Play** di Wokwi, tunggu Serial Monitor menampilkan `Wi-Fi tersambung` da
 - Masukan divalidasi ulang di server: UID (8, 14, atau 20 karakter heksadesimal), nama (maksimal 40 karakter), dan NPM (10 digit angka, boleh kosong).
 - Kredensial database disimpan di `.env` yang masuk `.gitignore`, sehingga tidak ikut ke repositori.
 
-**Catatan:** ini prototype. Dashboard dan API belum memakai login, jadi siapa pun yang tahu alamat server bisa membuka dashboard atau mengirim tap. Jangan dipakai untuk data nyata sebelum ada autentikasi. Mengenali orang hanya dari UID juga belum kuat, karena UID pada sebagian kartu bisa disalin.
+- Dashboard dan data kartu dilindungi login (HTTP Basic). Pengguna dan sandi dibandingkan dengan `secrets.compare_digest` yang tahan serangan waktu.
+- Perangkat memanggil `/tap` dengan kunci rahasia di header `X-API-Key`. Tanpa kunci yang benar, server membalas 401.
+- Kunci dan sandi disimpan di `.env`, bukan di kode. Kalau belum diatur, server menolak permintaan (503), tidak pernah terbuka secara diam-diam.
+
+**Catatan:** ini prototype. HTTP Basic cukup untuk simulasi, tetapi untuk produksi sebaiknya diganti login berbasis sesi dengan HTTPS di seluruh jalur. Kunci API tertanam di sketsa perangkat, jadi siapa pun yang memegang perangkat bisa membacanya. Mengenali orang hanya dari UID juga belum kuat, karena UID pada sebagian kartu bisa disalin.
 
 ---
 
@@ -421,7 +445,8 @@ Repositori ini berisi backend, dashboard, dan sketsa simulasi perangkat. Pengemb
 | 4 | Dashboard web dengan pembaruan otomatis | Jinja2, htmx, polling dan morph |
 | 5 | Pindah dari SQLite ke MySQL | Skema tabel, query berparameter, migrasi data |
 | 6 | NPM pada kartu dan form kelola kartu | Validasi input, kolom opsional, upsert |
-| 7 | Dokumentasi dan tutorial pemasangan | Menulis panduan yang bisa diulang orang lain |
+| 7 | Pengamanan dasar: login dashboard dan kunci API perangkat | Autentikasi HTTP Basic, API key, `Depends` di FastAPI |
+| 8 | Dokumentasi dan tutorial pemasangan | Menulis panduan yang bisa diulang orang lain |
 
 ---
 
@@ -441,8 +466,7 @@ Repositori ini berisi backend, dashboard, dan sketsa simulasi perangkat. Pengemb
 
 Belum dikerjakan karena di luar ruang lingkup tahap ini:
 
-- Login untuk dashboard dan peran pengguna.
-- Kunci API untuk perangkat ESP32 agar `/tap` tidak bisa dipanggil sembarang pihak.
+- Login berbasis sesi dengan peran pengguna (misalnya admin dan petugas), menggantikan HTTP Basic.
 - ESP32 dan RC522 asli dengan alamat IP lokal, tanpa tunnel.
 - Kunci pintu sungguhan (relay atau solenoid).
 - Sambungan ke database MySQL kampus.
