@@ -494,3 +494,58 @@ Belum dikerjakan karena di luar ruang lingkup tahap ini:
 - **Tunnel:** [localhost.run](https://localhost.run/)
 - **Asisten pengembangan:** Claude (Anthropic)
 
+
+## Pemasangan di Windows (XAMPP)
+
+Langkah ini sudah diuji di laptop Windows dengan XAMPP dan VS Code (PowerShell).
+
+### 1. Yang harus ada
+- Python 3.10 atau lebih baru
+- Git
+- XAMPP, dengan modul MySQL dalam keadaan Start (hijau)
+
+### 2. Ambil kode dan siapkan lingkungan Python
+```powershell
+git clone https://github.com/the1975/absen-nfc-backend.git
+cd absen-nfc-backend
+Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
+python -m venv venv
+.\venv\Scripts\Activate.ps1
+pip install -r .\server\requirements.txt
+```
+Kalau aktivasi venv ditolak ("running scripts is disabled"), jalankan baris `Set-ExecutionPolicy` di atas, lalu ulangi.
+
+### 3. Siapkan database
+1. Buka `http://localhost/phpmyadmin`.
+2. Klik **Baru**, isi nama `absen_nfc`, lalu klik **Buat**.
+3. Klik database `absen_nfc`, buka tab **Impor**, pilih file `absen_nfc.sql` dari folder proyek, lalu klik **Kirim**.
+4. Pastikan tabel `kartu` dan `absen` muncul.
+
+### 4. Buat file .env
+```powershell
+Copy-Item .env.example .env
+```
+Buka `.env`, lalu isi untuk XAMPP bawaan:
+```
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_USER=root
+DB_PASSWORD=
+DB_NAME=absen_nfc
+DB_SOCKET=
+```
+Ganti juga `API_KEY`, `DASHBOARD_USER`, `DASHBOARD_PASSWORD`, dan `SESSION_SECRET` dengan nilai milikmu sendiri. `API_KEY` harus sama dengan yang ada di kode ESP32.
+
+### 5. Nyalakan server
+```powershell
+cd server
+python -m uvicorn main:app --host 0.0.0.0 --port 8000
+```
+Buka `http://localhost:8000`, lalu masuk dengan `DASHBOARD_USER` dan `DASHBOARD_PASSWORD` dari `.env`.
+
+### Kalau ada masalah
+| Pesan | Penyebab dan solusi |
+|---|---|
+| `Unknown database 'absen_nfc'` | Database belum dibuat atau belum diimpor. Ulangi langkah 3. |
+| `running scripts is disabled` | Jalankan `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`. |
+| `Nama pengguna atau sandi salah` | Cek `.env`, lalu restart server karena `.env` hanya dibaca saat server menyala. |
